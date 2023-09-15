@@ -1,0 +1,31 @@
+GFAP Immunohistochemistry Protocol
+Day 1:  (NOTE: Antibody has GFP conjugated to it, do all washes, etc, with light blocking foil)
+1.  Wash tissue 3 x 5 minutes 0.01M (1X) PBS  at room temperature
+
+2. Block wash: Rinse tissue in blocking solution (10% donkey serum, PBT [0.25% Triton-X in 1X PBS]) for 2 hours at room temp.
+
+3. Incubate slide overnight at 4°C with primary antibody solution (10% donkey serum, PBT [0.25% Triton-X in 1X PBS], and 1:1000 anti-GFAP (Alexa Fluor 488, Millipore, MAB3402X)
+Note: KEEP IN DARK DURING AND AFTER GFAP ANTIBODY IS ADDED
+Day 2:
+4. Wash slides 3X 10 minutes 0.01M PBS at room temperature
+
+5. Remove from PBS, mount on slides, apply coverslips with mounting media (NOTE: do in dark or low light)
+
+6. Lay slides flat at room temperature 22?C for 24 hours, then transfer to dark slide box and keep at -20°C. 
+Lot number and specifics (tested by Julia 7/21/17)
+	Millipore (AB5804): 488 conjugated lot# 2293843 (original/first GFAP staining used)
+		Looks good 1:1000 or 1:2000!
+	Abcam (ab49874): Cy3 conjugated (lot? 
+		Looks good 1:1000 or 1:2000!
+
+	
+	
+
+
+
+
+
+
+       
+
+
