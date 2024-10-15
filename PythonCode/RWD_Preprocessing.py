@@ -8,7 +8,7 @@ from scipy.stats import linregress
 from scipy.signal import butter, filtfilt
 
 #%%
-filename = r"C:\Users\lexkr\Downloads\Fluorescence.csv"
+filename = r"C:\Users\lexkr\Downloads\2secpelletretrieval\Fluorescence437.csv"
 dfraw = pd.read_csv(filename, header=1)
 dfraw['TimeStampAdjusted'] = dfraw['TimeStamp'] / 1000
 dfraw.rename(columns={'CH1-410': 'UV', 'CH1-470': 'Fluorescence'}, inplace=True)
