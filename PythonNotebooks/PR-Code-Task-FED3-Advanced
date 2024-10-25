@@ -1,0 +1,511 @@
+Code for PR task analysis (Advanced parameters)
+-----------------------------------------------------------
+# Poke pellet response : This code allows us to see the number of pellets taken by the mice before the PR task resets. 
+# it serves as a way to check for motivation/thriftiness of mice (thriftiness : mice do not engage in a lot of effort to get pellets)
+#This code go through each file for each group and do a plot.
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.cm as cm
+import glob
+import os
+
+# Define directories and search patterns for each group
+directories = {
+    'Chow': r'C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/Chow',
+    'HFD': r'C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/HFD'
+}
+search_pattern = 'FED*.csv'
+
+# Dictionary to store averaged data for each group
+avg_data = {'Chow': [], 'HFD': []}
+
+# Loop through each directory and group
+for group, directory in directories.items():
+    # List to store averaged data for this group
+    avg_pellet_counts = []
+    avg_timestamps = []
+
+    # Loop through all "FED" files in the directory
+    file_list = glob.glob(os.path.join(directory, search_pattern))
+    for file in file_list:
+        try:
+            # Load the dataset, skipping problematic lines
+            df = pd.read_csv(file, on_bad_lines='skip')
+
+            # Convert the date timestamp column to datetime format
+            df['MM:DD:YYYY hh:mm:ss'] = pd.to_datetime(df['MM:DD:YYYY hh:mm:ss'], format='%m/%d/%Y %H:%M:%S')
+
+            # Define the time window for the last 36 hours from the last timestamp
+            latest_time = df['MM:DD:YYYY hh:mm:ss'].max()
+            start_time = latest_time - pd.Timedelta(hours=36)
+            df_filtered = df[(df['MM:DD:YYYY hh:mm:ss'] >= start_time) & (df['MM:DD:YYYY hh:mm:ss'] <= latest_time)]
+
+            # Filter data for "Pellet" events
+            pellet_df = df_filtered[df_filtered['Event'] == 'Pellet']
+
+            # Filter data for "Left" events 
+            left_df = df_filtered[df_filtered['Event'] == 'Left']  
+
+            # Normalize the 'Block Pellet Count' for color mapping
+            norm = plt.Normalize(vmin=-10, vmax=20)
+            cmap = cm.get_cmap('pink_r')
+            pellet_df['Color'] = pellet_df['Block_Pellet_Count'].clip(upper=40).apply(lambda x: cmap(norm(x)))
+
+            # Create individual plots for each file
+            fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 12))
+
+            # First subplot: Scatter plot for "Pellet" events
+            scatter = axs[1].scatter(
+                pellet_df['MM:DD:YYYY hh:mm:ss'], 
+                pellet_df['Block_Pellet_Count'], 
+                c=pellet_df['Block_Pellet_Count'].clip(upper=40), 
+                cmap='pink_r', 
+                norm=norm
+            )
+
+            # Add shading for specific times of the day
+            start_time_of_day = pd.to_datetime('7:00:00').time()
+            end_time_of_day = pd.to_datetime('19:00:00').time()
+
+            # Get the minimum and maximum timestamps for plotting bounds
+            plot_start = pellet_df['MM:DD:YYYY hh:mm:ss'].min()
+            plot_end = pellet_df['MM:DD:YYYY hh:mm:ss'].max()
+
+            # Create shaded regions for all days in the range
+            for day in pd.date_range(start=plot_start.date(), end=plot_end.date()):
+                start_datetime = pd.Timestamp.combine(day, start_time_of_day)
+                end_datetime = pd.Timestamp.combine(day, end_time_of_day)
+                axs[1].axvspan(start_datetime, end_datetime, color='gray', alpha=0.2)
+
+            # Second subplot: Vertical lines for "Left" events
+            for timestamp in left_df['MM:DD:YYYY hh:mm:ss']:
+                axs[0].axvline(x=timestamp, color='black', linestyle='-', linewidth=0.1, alpha=0.7)
+
+            # Add a color bar to the first subplot
+            cbar = plt.colorbar(scatter, ax=axs[1], label='Block Pellet Count')
+
+            # Label the axes
+            axs[1].set_ylabel('Block Pellet Count')
+            axs[0].set_ylabel('Active Pokes')
+
+            # Set the limits of the graphs
+            axs[1].set_ylim([0, 100])
+
+            # Rotate date labels for better readability in the x-axis
+            plt.setp(axs[1].xaxis.get_majorticklabels(), rotation=45)
+
+            # Title of the plot
+            axs[0].set_title(f'{os.path.basename(file)} ({group})')
+
+            # Show the plot
+            plt.tight_layout()
+            plt.show()
+
+            # Collect data for average plot
+            avg_pellet_counts.extend(pellet_df['Block_Pellet_Count'].tolist())
+            avg_timestamps.extend(pellet_df['MM:DD:YYYY hh:mm:ss'].tolist())
+
+        except Exception as e:
+            print(f"Error processing file {file}: {e}")
+#------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Breakpoint histograms
+# This code loads the packages and the "Chow" files 
+import pandas as pd
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+
+
+# Define the directory for Chow files
+directory_chow = r'C:\Users\florians\Box\Kravitz Lab Box Drive\Florian\BANDIT-TASK\cohort-2\PR\1stMeasure\Chow'
+
+# List to hold the series for each CSV file in the Chow directory
+data_frames = []
+
+# Iterate over each file in the directory
+for filename in os.listdir(directory_chow):
+    if filename.endswith('.CSV'):
+        filepath = os.path.join(directory_chow, filename)
+
+        try:
+            # Read the CSV file, skipping problematic lines
+            df = pd.read_csv(filepath, on_bad_lines='skip')
+
+            # Convert the date timestamp column to datetime format
+            df['MM:DD:YYYY hh:mm:ss'] = pd.to_datetime(df['MM:DD:YYYY hh:mm:ss'], errors='coerce')
+
+            # Define the time window for the last 36 hours from the last timestamp
+            latest_time = df['MM:DD:YYYY hh:mm:ss'].max()
+            start_time = latest_time - pd.Timedelta(hours=36)
+            df_filtered = df[(df['MM:DD:YYYY hh:mm:ss'] >= start_time) & (df['MM:DD:YYYY hh:mm:ss'] <= latest_time)]
+
+            # Create a list to store Block_Pellet_Count values that meet the condition
+            block_pellet_counts = []
+
+            # Iterate through the rows of the filtered dataframe
+            for i in range(len(df_filtered) - 1):  # len(df_filtered) - 1 to avoid IndexError
+                if df_filtered.iloc[i + 1]['Block_Pellet_Count'] == 0:
+                    block_pellet_counts.append(df_filtered.iloc[i]['Block_Pellet_Count'])
+
+            # Create a Series with Block_Pellet_Count values and set its name to the filename (without extension)
+            series = pd.Series(block_pellet_counts, name=filename.replace('.CSV', ''))
+
+            # Append the Series to the list of DataFrames
+            data_frames.append(series)
+
+        except Exception as e:
+            print(f"Error processing file {filename}: {e}")
+
+# Combine all series into a DataFrame
+result_df_chow = pd.concat(data_frames, axis=1)
+
+# Display the resulting DataFrame
+#print(result_df_chow)
+
+# The following code then do the same but with HFD files 
+import pandas as pd
+import os
+
+# Define the directory for HFD files
+directory_HFD = r'C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/HFD'
+
+# List to hold the series for each CSV file in the HFD directory
+data_frames = []
+
+# Iterate over each file in the directory
+for filename in os.listdir(directory_HFD):
+    if filename.endswith('.CSV'):
+        filepath = os.path.join(directory_HFD, filename)
+        
+        try:
+            # Read the CSV file, skipping problematic lines
+            df = pd.read_csv(filepath, on_bad_lines='skip')
+
+            # Convert the date timestamp column to datetime format
+            df['MM:DD:YYYY hh:mm:ss'] = pd.to_datetime(df['MM:DD:YYYY hh:mm:ss'], errors='coerce')
+
+            # Define the time window for the last 36 hours from the last timestamp
+            latest_time = df['MM:DD:YYYY hh:mm:ss'].max()
+            start_time = latest_time - pd.Timedelta(hours=36)
+            df_filtered = df[(df['MM:DD:YYYY hh:mm:ss'] >= start_time) & (df['MM:DD:YYYY hh:mm:ss'] <= latest_time)]
+
+            # Create a list to store Block_Pellet_Count values that meet the condition
+            block_pellet_counts = []
+
+            # Iterate through the rows of the filtered dataframe
+            for i in range(len(df_filtered) - 1):  # len(df_filtered) - 1 to avoid IndexError
+                if df_filtered.iloc[i + 1]['Block_Pellet_Count'] == 0:
+                    block_pellet_counts.append(df_filtered.iloc[i]['Block_Pellet_Count'])
+
+            # Create a Series with Block_Pellet_Count values and set its name to the filename (without extension)
+            series = pd.Series(block_pellet_counts, name=filename.replace('.CSV', ''))
+
+            # Append the Series to the list of DataFrames
+            data_frames.append(series)
+
+        except Exception as e:
+            print(f"Error processing file {filename}: {e}")
+
+# Combine all series into a DataFrame
+result_df_HFD = pd.concat(data_frames, axis=1)
+
+# Save the resulting DataFrame to a new CSV file
+result_df_HFD.to_csv('result_HFD.csv', index=False)
+
+#The following code do the plots and a KS distribution test 
+
+def calculate_average_histogram(df):
+    """Calculate the average histogram for a DataFrame."""
+    # Define the bin edges. Adjust as needed based on your data range.
+    bin_edges = np.arange(df.min().min(), df.max().max() + 2)  # +2 to include the last bin edge
+
+    # Create an empty list to store histograms
+    histograms = []
+
+    # Compute histograms for each column
+    for column in df.columns:
+        data = df[column].dropna()
+        hist, _ = np.histogram(data, bins=bin_edges, density= True)
+        histograms.append(hist)
+
+    # Convert list of histograms to a numpy array and compute the mean
+    histograms_array = np.array(histograms)
+    mean_histogram = np.mean(histograms_array, axis=0)
+
+    return bin_edges, mean_histogram
+
+# Load the resulting DataFrames
+result_df = result_df_chow #pd.read_csv('result.csv')
+result_df2 = result_df_HFD #pd.read_csv('result2.csv')  # Assuming 'result2.csv' is your second DataFrame
+
+# Calculate the average histograms
+bin_edges1, mean_histogram1 = calculate_average_histogram(result_df)
+bin_edges2, mean_histogram2 = calculate_average_histogram(result_df2)
+
+# Create figure and axis objects
+plt.figure(figsize=(6, 4))
+
+# Plot the average histograms
+plt.bar(bin_edges1[:-1] - 0.2, mean_histogram1, width=0.5, label='Chow', edgecolor='black', alpha=0.5)
+plt.bar(bin_edges2[:-1] + 0.2, mean_histogram2, width=0.5, label='HFD', edgecolor='black', alpha=0.5)
+
+# Overlay KDEs
+sns.kdeplot(result_df.stack(), bw_adjust=0.5, label='KDE for Chow', linestyle='--', color='blue')
+sns.kdeplot(result_df2.stack(), bw_adjust=0.5, label='KDE for HFD', linestyle='--', color='red')
+
+# Add labels and legend
+#plt.yscale('log')
+plt.xlim(0,100)
+plt.title('Average Normalized Histograms and KDE of Block_Pellet_Counts')
+plt.xlabel('Block_Pellet_Count')
+plt.ylabel('Average Frequency')
+plt.legend()
+plt.show()
+plt.savefig('HistogramBlockPelletcount_Acute.svg')
+ks_stat, p_value = stats.ks_2samp(result_df.stack(), result_df2.stack())
+
+print(f"KS Statistic: {ks_stat}")
+print(f"P-value: {p_value}")
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Pellet price  histograms demands
+# The following code initially load all the files (Chow and HFD)
+
+import pandas as pd
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+
+# Directory containing .csv files
+
+directory_Chow = (r'C:\Users\florians\Box\Kravitz Lab Box Drive\Florian\BANDIT-TASK\cohort-2\PR\1stMeasure\Chow')
+directory_HFD = (r'C:\Users\florians\Box\Kravitz Lab Box Drive\Florian\BANDIT-TASK\cohort-2\PR\1stMeasure\HFD')
+
+# List to hold the series for each CSV file in the CHOW directory
+data_frames = []
+
+# Iterate over each file in the directory
+for filename in os.listdir(directory_Chow):
+    if filename.endswith('.CSV'):
+        filepath = os.path.join(directory_Chow, filename)
+        # Read the CSV file, skipping problematic lines
+        df = pd.read_csv(filepath, on_bad_lines='skip')
+        
+        # Create a list to store Block_Pellet_Count values that meet the condition
+        pellet_price = []
+
+        # Iterate through the rows of the dataframe
+        for i in range(len(df) - 1):  # len(df) - 1 to avoid IndexError
+            if df.iloc[i]['Event'] == 'Pellet':
+                pellet_price.append(df.iloc[i]['FR'])
+        
+        # Create a Series with Block_Pellet_Count values and set its name to the filename (without extension)
+        series = pd.Series(pellet_price, name=filename.replace('.CSV', ''))
+        
+        # Append the Series to the list of DataFrames
+        data_frames.append(series)
+
+# Combine all series into a DataFrame
+result_df_chow = pd.concat(data_frames, axis=1)
+
+# Then the following code do the same but with the HFD
+# List to hold the series for each csv file in the SNI directory
+data_frames = []
+
+# Iterate over each file in the directory
+for filename in os.listdir(directory_HFD):
+    if filename.endswith('.CSV'):
+        filepath = os.path.join(directory_HFD, filename)
+        # Read the csv file
+        df = pd.read_csv(filepath)
+        
+        # Create a list to store Block_Pellet_Count values that meet the condition
+        pellet_price = []
+
+        # Iterate through the rows of the dataframe
+        for i in range(len(df) - 1):  # len(df) - 1 to avoid IndexError
+            if df.iloc[i]['Event'] == 'Pellet':
+                pellet_price.append(df.iloc[i]['FR'])
+        
+        # Create a Series with Block_Pellet_Count values and set its name to the filename (without extension)
+        series = pd.Series(pellet_price, name=filename.replace('.CSV', ''))
+        
+        # Append the Series to the list of DataFrames
+        data_frames.append(series)
+        #print(data_frames)
+
+# Combine all series into a DataFrame
+result_df_HFD = pd.concat(data_frames, axis=1)
+
+# The following code then plots the histograms and do the distribution analysis. 
+
+def calculate_average_histogram(df):
+    """Calculate the average histogram for a DataFrame."""
+    # Define the bin edges. Adjust as needed based on your data range.
+    bin_edges = np.arange(df.min().min(), df.max().max() + 2)  # +2 to include the last bin edge
+    #bin_edges = [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 12, 13, 15, 17, 20, 22, 25, 28, 32, 36, 40, 45, 50, 56, 62, 69, 77, 86, 95, 106, 118, 131, 145, 161, 178, 220, 243, 270, 300]
+
+    # Create an empty list to store histograms
+    histograms = []
+
+    # Compute histograms for each column
+    for column in df.columns:
+        data = df[column].dropna()
+        hist, _ = np.histogram(data, bins=bin_edges, density=True)
+        histograms.append(hist)
+
+    # Convert list of histograms to a numpy array and compute the mean
+    histograms_array = np.array(histograms)
+    mean_histogram = np.mean(histograms_array, axis=0)
+
+    return bin_edges, mean_histogram
+
+# Load the resulting DataFrames
+result_df = result_df_chow #pd.read_csv('result.csv')
+result_df2 = result_df_HFD #pd.read_csv('result2.csv')  # Assuming 'result2.csv' is your second DataFrame
+
+# Calculate the average histograms
+bin_edges1, mean_histogram1 = calculate_average_histogram(result_df)
+bin_edges2, mean_histogram2 = calculate_average_histogram(result_df2)
+
+# Create figure and axis objects
+plt.figure(figsize=(12, 7))
+
+# Plot the average histograms
+plt.bar((bin_edges1[:-1]) - 0.2, mean_histogram1, width=0.5, label='Histogram from chow', edgecolor='black', alpha=0.5)
+plt.bar((bin_edges2[:-1]) + 0.2, mean_histogram2, width=0.5, label='Histogram from HFD', edgecolor='black', alpha=0.5)
+
+# Overlay KDEs
+sns.kdeplot(result_df.stack(), bw_adjust=0.5, label='KDE for chow', linestyle='--', color='blue')
+sns.kdeplot(result_df2.stack(), bw_adjust=0.5, label='KDE for HFD', linestyle='--', color='red')
+
+# Add labels and legend
+#plt.xscale('symlog')
+plt.xlim(0.00,100)
+plt.title('Average Normalized Histograms and KDE of Pellet Price')
+plt.xlabel('Pellet Price')
+plt.ylabel('Average Frequency')
+plt.legend()
+#plt.show()
+#plt.savefig('HistogramBPelletPrice_AcuteNorm.svg')
+
+ks_stat, p_value = stats.ks_2samp(mean_histogram1, mean_histogram2)
+
+print(f"KS Statistic: {ks_stat}")
+print(f"P-value: {p_value}")
+
+#%% And the next code do the average smoothed demand curve with individual lines 
+df = result_df_chow
+df_2 = result_df_HFD
+
+# Number of Pellets (Assuming the index is the number of pellets)
+num_pellets = np.arange(1, len(df) + 1)
+
+# Create the plot
+plt.figure(figsize=(10, 6))
+
+# Plot individual smoothed demand curves
+for subject in df.columns:
+    # Sort by price to ensure a classic downward slope
+    sorted_prices = df[subject].sort_values()
+    # Smooth the curve using a rolling mean
+    smoothed_prices = sorted_prices.rolling(window=1, min_periods=1).mean()
+    plt.plot(smoothed_prices, num_pellets[:len(smoothed_prices)], alpha=0.3)
+    
+# Plot individual smoothed demand curves
+    for subject in df_2.columns:
+        # Sort by price to ensure a classic downward slope
+        sorted_prices = df_2[subject].sort_values()
+        # Smooth the curve using a rolling mean
+        smoothed_prices = sorted_prices.rolling(window=1, min_periods=1).mean()
+        plt.plot(smoothed_prices, num_pellets[:len(smoothed_prices)], alpha=0.3)
+
+# Calculate and plot the average demand curve
+mean_prices = df.mean(axis=1).sort_values()
+smoothed_mean_prices = mean_prices.rolling(window=1, min_periods=1).mean()
+plt.plot(smoothed_mean_prices, num_pellets[:len(smoothed_mean_prices)], color='teal', linewidth=5, label='Average Demand Curve')
+
+
+
+# Calculate and plot the average demand curve
+mean_prices = df_2.mean(axis=1).sort_values()
+smoothed_mean_prices = mean_prices.rolling(window=1, min_periods=1).mean()
+plt.plot(smoothed_mean_prices, num_pellets[:len(smoothed_mean_prices)], color='indianred', linewidth=5, label='Average Demand Curve')
+
+# Add labels and title
+plt.xlabel('Price Paid')
+plt.ylabel('Number of Pellets')
+plt.title('Smoothed Demand Curves for Each Subject')
+plt.xlim(0,50)
+
+
+# Show the plot
+plt.show()
+
+#%% And this code runs the AUC for the smoothed lines and compare the two groups in a t-test
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
+
+# Calculate AUC for each subject in the Chow group
+auc_chow = []
+for subject in df.columns:
+    sorted_prices = df[subject].sort_values().dropna()  # Sort and drop NaN values
+    smoothed_prices = sorted_prices.rolling(window=1, min_periods=1).mean().dropna()  # Smooth and drop NaN values
+    if len(smoothed_prices) > 0:  # Check if there are any valid data points
+        auc_value = np.trapz(smoothed_prices, dx=1)  # Calculate AUC using trapezoidal rule
+        auc_chow.append(auc_value)
+    else:
+        auc_chow.append(np.nan)  # Append NaN if no valid data points
+
+# Calculate AUC for each subject in the HFD group
+auc_hfd = []
+for subject in df_2.columns:
+    sorted_prices = df_2[subject].sort_values().dropna()  # Sort and drop NaN values
+    smoothed_prices = sorted_prices.rolling(window=1, min_periods=1).mean().dropna()  # Smooth and drop NaN values
+    if len(smoothed_prices) > 0:  # Check if there are any valid data points
+        auc_value = np.trapz(smoothed_prices, dx=1)  # Calculate AUC using trapezoidal rule
+        auc_hfd.append(auc_value)
+    else:
+        auc_hfd.append(np.nan)  # Append NaN if no valid data points
+
+# Remove NaN values from the AUC lists for plotting and statistical testing
+auc_chow = [val for val in auc_chow if not np.isnan(val)]
+auc_hfd = [val for val in auc_hfd if not np.isnan(val)]
+
+# Plot boxplot with individual data points
+plt.figure(figsize=(8, 6))
+positions = [1, 2]  # Boxplot positions for Chow and HFD
+
+# Boxplot
+plt.boxplot([auc_chow, auc_hfd], labels=['Chow', 'HFD'], positions=positions, showmeans=True)
+
+# Add individual data points on top of the boxplot
+plt.scatter([1]*len(auc_chow), auc_chow, color='teal', alpha=0.6, edgecolor='black', zorder=2, label='Chow')
+plt.scatter([2]*len(auc_hfd), auc_hfd, color='indianred', alpha=0.6, edgecolor='black', zorder=2, label='HFD')
+
+# Perform unpaired t-test
+t_stat, p_value = ttest_ind(auc_chow, auc_hfd, equal_var=False)
+
+# Annotate the p-value
+plt.text(1.5, max(max(auc_chow), max(auc_hfd)) * 1.05, f'p = {p_value:.3f}', fontsize=12, ha='center')
+
+# Add labels and title
+plt.ylabel('AUC')
+plt.title('AUC Comparison Between Chow and HFD Groups')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+# Adjust layout for better visualization
+plt.tight_layout()
+
+# Show the plot
+plt.show()
+
+
