@@ -1,0 +1,299 @@
+#This code is for basic parameters of comparison between HFD and Chow groups in a PR task ran for 36 hours. 
+# The following code takes all the data files from a directory and make a "summary" document that will be needed for comparison. It needs to be ran for HFD files and Chow files ot have two "Summary" documents
+
+import pandas as pd
+import os
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Function to calculate and remove outliers using IQR method
+def remove_outliers(df, column_name):
+    Q1 = df[column_name].quantile(0.25)
+    Q3 = df[column_name].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    filtered_df = df[(df[column_name] >= lower_bound) & (df[column_name] <= upper_bound)]
+    return filtered_df
+
+# Define the directory and the search pattern
+directory = r"C:\Users\florians\Box\Kravitz Lab Box Drive\Florian\BANDIT-TASK\cohort-2\PR\1stMeasure\HFD"
+search_pattern = os.path.join(directory, "*FED*.csv")
+
+# Find all files that match the search pattern
+file_list = glob.glob(search_pattern)
+
+# Initialize an empty list to store results
+results_list = []
+
+# Loop through each file
+for file in file_list:
+    # Read the CSV file, skipping problematic lines
+    df = pd.read_csv(file, on_bad_lines='skip')
+    
+    # Convert the "MM:DD:YYYY hh:mm:ss" column to datetime
+    df['MM:DD:YYYY hh:mm:ss'] = pd.to_datetime(df['MM:DD:YYYY hh:mm:ss'], errors='coerce')
+    
+    # Define the time window for the last 36 hours from the last timestamp
+    latest_time = df['MM:DD:YYYY hh:mm:ss'].max()
+    start_time = latest_time - pd.Timedelta(hours=36)
+    df_filtered = df[(df['MM:DD:YYYY hh:mm:ss'] >= start_time) & (df['MM:DD:YYYY hh:mm:ss'] <= latest_time)]
+    
+    # Ensure numeric conversion for relevant columns
+    num_cols = ['Retrieval_Time', 'Poke_Time', 'FR', 'Block_Pellet_Count', 
+                'Left_Poke_Count', 'Right_Poke_Count', 'Pellet_Count', 'InterPelletInterval']
+    df_filtered[num_cols] = df_filtered[num_cols].apply(pd.to_numeric, errors='coerce')
+
+    # Calculate metrics
+    max_left_poke = df_filtered['Left_Poke_Count'].max()
+    max_right_poke = df_filtered['Right_Poke_Count'].max()
+    max_block_pellet_count = df_filtered['Block_Pellet_Count'].max()
+    max_pellet_count = df_filtered['Pellet_Count'].max()
+
+    # Average retrieval time (values <= 10 seconds)
+    retrieval_time_filtered = df_filtered[df_filtered['Retrieval_Time'] <= 10]
+    avg_retrieval_time = retrieval_time_filtered['Retrieval_Time'].mean()
+
+    # Average inter-pellet interval
+    avg_inter_pellet_interval = df_filtered['InterPelletInterval'].mean()
+
+    # Average poke time (values <= 30 seconds)
+    poke_time_filtered = df_filtered[df_filtered['Poke_Time'] <= 30]
+    avg_poke_time = poke_time_filtered['Poke_Time'].mean()
+
+    # Maximum FR value
+    max_fr_value = df_filtered['FR'].max()
+
+    # Total number of pokes (ensure max_left_poke and max_right_poke are numeric)
+    max_left_poke = max_left_poke if pd.notnull(max_left_poke) else 0
+    max_right_poke = max_right_poke if pd.notnull(max_right_poke) else 0
+    total_pokes = max_left_poke + max_right_poke
+
+    # Pokes/Pellet ratio
+    pokes_per_pellet_ratio = total_pokes / max_block_pellet_count if max_block_pellet_count > 0 else None
+
+    # Calculate the normalized frequency of run length for Block_Pellet_Count
+    block_pellet_counts = df_filtered['Block_Pellet_Count'].dropna().tolist()
+    run_lengths = []
+    current_run = 0
+
+    for count in block_pellet_counts:
+        if count == 0:
+            if current_run > 0:
+                run_lengths.append(current_run)
+                current_run = 0
+        else:
+            current_run = max(current_run, count)
+    
+    if current_run > 0:
+        run_lengths.append(current_run)
+
+    # Calculate the frequency of each run length
+    run_length_counts = pd.Series(run_lengths).value_counts().sort_index()
+    
+    # Normalize the frequency
+    normalized_frequency = run_length_counts / run_length_counts.sum()
+
+    # Calculate accuracy: ratio of 'Event' is 'Left' to 'Active_Poke' is 'Left'
+    event_left_count = df_filtered[df_filtered['Event'] == 'Left'].shape[0]
+    active_poke_left_count = df_filtered[df_filtered['Active_Poke'] == 'Left'].shape[0]
+    accuracy = event_left_count / active_poke_left_count if active_poke_left_count > 0 else None
+
+    # Store results for this file
+    result = {
+        "Filename": os.path.basename(file),
+        "Max Left Poke": max_left_poke,
+        "Max Right Poke": max_right_poke,
+        "Max Block Pellet Count": max_block_pellet_count,
+        "Max Pellet Count": max_pellet_count,
+        "Average Retrieval Time": avg_retrieval_time,
+        "Average Inter-Pellet Interval": avg_inter_pellet_interval,
+        "Average Poke Time": avg_poke_time,
+        "Max FR Value": max_fr_value,
+        "Total Pokes": total_pokes,
+        "Pokes/Pellet Ratio": pokes_per_pellet_ratio,
+        "Normalized Run Length Frequency": normalized_frequency.to_dict(),
+        "Accuracy": accuracy
+    }
+    results_list.append(result)
+
+# Create a DataFrame from the results list
+results_df = pd.DataFrame(results_list)
+
+# Save the results to a CSV file
+output_file_path = r"C:\Users\florians\Box\Kravitz Lab Box Drive\Florian\BANDIT-TASK\cohort-2\PR\1stMeasure\PR_HFD.csv"
+results_df.to_csv(output_file_path, index=False)
+
+print(f"Results saved to {output_file_path}")
+
+#%% The following code take the summary files and do a barplot for comparison (with linear regression added for weight and Glucose tolerance test status, to disregard if not interested)
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import ttest_ind
+import numpy as np
+import statsmodels.api as sm  # For linear regression and obtaining R² and p-values
+
+# Load the CSV files for Chow (control) and HFD (obesity)
+results_df_control = pd.read_csv('C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/Chow/Merged/PR-Chow-102424.csv')  # Control group
+results_df_obesity = pd.read_csv('C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/HFD/Merged/PR-HFD-102424.csv')  # Obesity group
+
+# Define 'Weight' and 'Glucose120' as key columns for analysis
+weight_column = 'Weight'
+glucose_column = 'GTT-120'  # Ensure this is correctly named in your datasets
+
+# Combine both datasets into a single DataFrame
+results_df_control['Group'] = 'Control'
+results_df_obesity['Group'] = 'Obesity'
+combined_df = pd.concat([results_df_control, results_df_obesity])
+
+# List of columns to compare
+columns = results_df_control.columns[1:15]  # Adjust range based on actual columns
+
+# DataFrame to store p-values
+p_values_df = pd.DataFrame(columns=['Variable', 'T-test p-value', 'Linear Regression Weight p-value', 'Linear Regression Glucose p-value'])
+
+# Main plotting loop for box plots and regression plots for each specified column
+for i in range(0, len(columns), 3):
+    fig, axes = plt.subplots(1, 3, figsize=(12, 5))  # Box plot
+    axes = axes.flatten()
+
+    for idx, column in enumerate(columns[i:i + 3]):
+        ax = axes[idx]
+
+        # Prepare data for plotting
+        data_control = results_df_control[column].dropna()
+        data_obesity = results_df_obesity[column].dropna()
+
+        # Box plot
+        sns.boxplot(x=['Control'] * len(data_control) + ['Obesity'] * len(data_obesity),
+                    y=list(data_control) + list(data_obesity),
+                    ax=ax, palette=['white', 'indianred'], linewidth=1.5, width=0.6)
+
+        # Add individual data points
+        sns.stripplot(x=['Control'] * len(data_control) + ['Obesity'] * len(data_obesity),
+                      y=list(data_control) + list(data_obesity),
+                      ax=ax, jitter=False, size=8, color='black', edgecolor='black')
+
+        # Run t-test
+        t_stat, ttest_p_value = ttest_ind(data_control, data_obesity, equal_var=True)
+
+        # Set y-axis limits and annotate p-value
+        ymin = 0
+        ymax = max(max(data_control), max(data_obesity)) + 0.1 * max(max(data_control), max(data_obesity))
+        ax.set_ylim([ymin, ymax])
+        p_text = 'p-value:\n <0.001' if ttest_p_value < 0.001 else f'p-value:\n {ttest_p_value:.3f}'
+        ax.text(0.5, ymax, p_text, fontsize=12, color='red' if ttest_p_value < 0.05 else 'black', ha='center')
+
+        # Set plot titles and labels
+        ax.set_ylabel(column, fontsize=10)
+        ax.set_xlabel("Group", fontsize=10)
+        ax.set_xticklabels(["Chow", "HFD"], fontsize=10)
+        sns.despine()
+
+        # Store p-value from t-test
+        new_row = pd.DataFrame({
+            'Variable': [column],
+            'T-test p-value': [ttest_p_value],
+            'Linear Regression Weight p-value': [np.nan],  # Will fill in later
+            'Linear Regression Glucose p-value': [np.nan]  # Will fill in later
+        })
+        p_values_df = pd.concat([p_values_df, new_row], ignore_index=True)
+
+    # --- Linear Regression Plot with Combined Data for Weight vs Variables ---
+    fig, axes_reg = plt.subplots(1, 3, figsize=(12, 7))
+
+    for idx, column in enumerate(columns[i:i + 3]):
+        ax_reg = axes_reg[idx]
+
+        # Prepare combined data for regression
+        combined_data = combined_df[[weight_column, column, 'Group']].dropna()
+
+        if combined_data.shape[0] > 1:  # Ensure there is enough data
+            # Perform linear regression on the combined data
+            X = sm.add_constant(combined_data[weight_column])
+            y = combined_data[column]
+            model = sm.OLS(y, X).fit()
+
+            # Extract R² and p-value
+            r_squared = model.rsquared
+            regression_p_value = model.pvalues[1]
+
+            # Plot the regression
+            sns.regplot(x=weight_column, y=column, data=combined_data, ax=ax_reg,
+                        scatter=False, line_kws={"color": "black"})  # Regression line only
+
+            # Plot scatter points for each group with different colors
+            sns.scatterplot(data=combined_data[combined_data['Group'] == 'Control'],
+                            x=weight_column, y=column, ax=ax_reg, color='white', s=100, label='Chow', edgecolor='black')
+            sns.scatterplot(data=combined_data[combined_data['Group'] == 'Obesity'],
+                            x=weight_column, y=column, ax=ax_reg, color='indianred', s=100, label='HFD', edgecolor='black')
+
+            # Annotate the plot with R² and p-value
+            r2_text = f'Combined $R^2$: {r_squared:.2f}, p-value: {"<0.001" if regression_p_value < 0.001 else f"{regression_p_value:.3f}"}'
+            ax_reg.text(0.05, 0.95, r2_text, transform=ax_reg.transAxes,
+                        fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
+
+            # Set plot labels
+            ax_reg.set_title(f"Linear Regression: {weight_column} vs {column}")
+            ax_reg.set_xlabel(weight_column)
+            ax_reg.set_ylabel(column)
+            ax_reg.legend(loc='best')
+            sns.despine()
+
+            # Store the regression p-value
+            p_values_df.loc[p_values_df['Variable'] == column, 'Linear Regression Weight p-value'] = regression_p_value
+
+    plt.tight_layout()
+    plt.show()
+
+    # --- Additional Regression for Each Variable with Glucose120 ---
+    fig, axes_glucose = plt.subplots(1, 3, figsize=(18, 6))
+
+    for idx, column in enumerate(columns[i:i + 3]):
+        ax_glucose = axes_glucose[idx]
+
+        # Prepare combined data for Glucose120 correlation analysis
+        combined_glucose_data = combined_df[[glucose_column, column, 'Group']].dropna()
+
+        if combined_glucose_data.shape[0] > 1:
+            # Perform linear regression on the combined data
+            X = sm.add_constant(combined_glucose_data[column])
+            y = combined_glucose_data[glucose_column]
+            model = sm.OLS(y, X).fit()
+
+            # Extract R² and p-value
+            r_squared = model.rsquared
+            regression_glucose_p_value = model.pvalues[1]
+
+            # Plot the regression
+            sns.regplot(x=column, y=glucose_column, data=combined_glucose_data, ax=ax_glucose,
+                        scatter=False, line_kws={"color": "black"})  # Regression line only
+
+            # Plot scatter points for each group with different colors
+            sns.scatterplot(data=combined_glucose_data[combined_glucose_data['Group'] == 'Control'],
+                            x=column, y=glucose_column, ax=ax_glucose, color='white', s=80, label='Chow', edgecolor='black')
+            sns.scatterplot(data=combined_glucose_data[combined_glucose_data['Group'] == 'Obesity'],
+                            x=column, y=glucose_column, ax=ax_glucose, color='indianred', s=80, label='HFD', edgecolor='black')
+
+            # Annotate the plot with R² and p-value
+            r2_text = f'Combined $R^2$: {r_squared:.2f}, p-value: {"<0.001" if regression_glucose_p_value < 0.001 else f"{regression_glucose_p_value:.3f}"}'
+            ax_glucose.text(0.05, 0.95, r2_text, transform=ax_glucose.transAxes,
+                            fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
+
+            # Set plot labels for Glucose120 correlation
+            ax_glucose.set_title(f"Linear Regression: {column} vs {glucose_column}")
+            ax_glucose.set_xlabel(column)
+            ax_glucose.set_ylabel(glucose_column)
+            ax_glucose.legend(loc='best')
+            sns.despine()
+
+            # Store the glucose regression p-value
+            p_values_df.loc[p_values_df['Variable'] == column, 'Linear Regression Glucose p-value'] = regression_glucose_p_value
+
+    plt.tight_layout()
+    plt.show()
+
+# Display the table of p-values
+import ace_tools as tools; tools.display_dataframe_to_user(name="P-values Table", dataframe=p_values_df)
