@@ -1,0 +1,111 @@
+Code for PR analysis in the FED3 Pellets dispenser
+-----------------------------------------------------------
+# Poke pellet response : This code allows us to see the number of pellets taken by the mice before the PR task resets. 
+# it serves as a way to check for motivation/thriftiness of mice (thriftiness : mice do not engage in a lot of effort to get pellets)
+#This code go through each file for each group and do a plot.
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.cm as cm
+import glob
+import os
+
+# Define directories and search patterns for each group
+directories = {
+    'Chow': r'C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/Chow',
+    'HFD': r'C:/Users/florians/Box/Kravitz Lab Box Drive/Florian/BANDIT-TASK/cohort-2/PR/1stMeasure/HFD'
+}
+search_pattern = 'FED*.csv'
+
+# Dictionary to store averaged data for each group
+avg_data = {'Chow': [], 'HFD': []}
+
+# Loop through each directory and group
+for group, directory in directories.items():
+    # List to store averaged data for this group
+    avg_pellet_counts = []
+    avg_timestamps = []
+
+    # Loop through all "FED" files in the directory
+    file_list = glob.glob(os.path.join(directory, search_pattern))
+    for file in file_list:
+        try:
+            # Load the dataset, skipping problematic lines
+            df = pd.read_csv(file, on_bad_lines='skip')
+
+            # Convert the date timestamp column to datetime format
+            df['MM:DD:YYYY hh:mm:ss'] = pd.to_datetime(df['MM:DD:YYYY hh:mm:ss'], format='%m/%d/%Y %H:%M:%S')
+
+            # Define the time window for the last 36 hours from the last timestamp
+            latest_time = df['MM:DD:YYYY hh:mm:ss'].max()
+            start_time = latest_time - pd.Timedelta(hours=36)
+            df_filtered = df[(df['MM:DD:YYYY hh:mm:ss'] >= start_time) & (df['MM:DD:YYYY hh:mm:ss'] <= latest_time)]
+
+            # Filter data for "Pellet" events
+            pellet_df = df_filtered[df_filtered['Event'] == 'Pellet']
+
+            # Filter data for "Left" events 
+            left_df = df_filtered[df_filtered['Event'] == 'Left']  
+
+            # Normalize the 'Block Pellet Count' for color mapping
+            norm = plt.Normalize(vmin=-10, vmax=20)
+            cmap = cm.get_cmap('pink_r')
+            pellet_df['Color'] = pellet_df['Block_Pellet_Count'].clip(upper=40).apply(lambda x: cmap(norm(x)))
+
+            # Create individual plots for each file
+            fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 12))
+
+            # First subplot: Scatter plot for "Pellet" events
+            scatter = axs[1].scatter(
+                pellet_df['MM:DD:YYYY hh:mm:ss'], 
+                pellet_df['Block_Pellet_Count'], 
+                c=pellet_df['Block_Pellet_Count'].clip(upper=40), 
+                cmap='pink_r', 
+                norm=norm
+            )
+
+            # Add shading for specific times of the day
+            start_time_of_day = pd.to_datetime('7:00:00').time()
+            end_time_of_day = pd.to_datetime('19:00:00').time()
+
+            # Get the minimum and maximum timestamps for plotting bounds
+            plot_start = pellet_df['MM:DD:YYYY hh:mm:ss'].min()
+            plot_end = pellet_df['MM:DD:YYYY hh:mm:ss'].max()
+
+            # Create shaded regions for all days in the range
+            for day in pd.date_range(start=plot_start.date(), end=plot_end.date()):
+                start_datetime = pd.Timestamp.combine(day, start_time_of_day)
+                end_datetime = pd.Timestamp.combine(day, end_time_of_day)
+                axs[1].axvspan(start_datetime, end_datetime, color='gray', alpha=0.2)
+
+            # Second subplot: Vertical lines for "Left" events
+            for timestamp in left_df['MM:DD:YYYY hh:mm:ss']:
+                axs[0].axvline(x=timestamp, color='black', linestyle='-', linewidth=0.1, alpha=0.7)
+
+            # Add a color bar to the first subplot
+            cbar = plt.colorbar(scatter, ax=axs[1], label='Block Pellet Count')
+
+            # Label the axes
+            axs[1].set_ylabel('Block Pellet Count')
+            axs[0].set_ylabel('Active Pokes')
+
+            # Set the limits of the graphs
+            axs[1].set_ylim([0, 100])
+
+            # Rotate date labels for better readability in the x-axis
+            plt.setp(axs[1].xaxis.get_majorticklabels(), rotation=45)
+
+            # Title of the plot
+            axs[0].set_title(f'{os.path.basename(file)} ({group})')
+
+            # Show the plot
+            plt.tight_layout()
+            plt.show()
+
+            # Collect data for average plot
+            avg_pellet_counts.extend(pellet_df['Block_Pellet_Count'].tolist())
+            avg_timestamps.extend(pellet_df['MM:DD:YYYY hh:mm:ss'].tolist())
+
+        except Exception as e:
+            print(f"Error processing file {file}: {e}")
