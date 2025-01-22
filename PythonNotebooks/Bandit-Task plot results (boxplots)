@@ -9,7 +9,7 @@ import os
 # Define the output directory path
 output_dir = r'wherever you want to export the graphs'
 
-# Load the CSV files for Control (df_1) or Exp (df_2)
+# Load the CSV files for Control (df_1) or Exp (df_2), these files are the results of the processed data file code (https://github.com/KravitzLab/KreedLabWiki/blob/main/PythonNotebooks/Bandit-Task-Analysis%20to%20process%20data%20files) 
 results_df_1 = pd.read_csv('pathway to df1')  # Control group
 results_df_1 = pd.read_csv('pathway to df2')  # Exp group
 
