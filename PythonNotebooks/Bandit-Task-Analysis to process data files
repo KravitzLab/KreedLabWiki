@@ -110,3 +110,47 @@ results_df1 = pd.DataFrame(results_list)
 results_df1.to_csv('results_df1.csv', index=False)
 
 print("File list:", file_list)
+
+
+
+#%% Improved accuracy calculation (to c/c after "Calculate true_left and mouse_left for the plot using the full dataset (without poke and retrieval outliers)"
+
+   # Calculate accuracy for the last instances where Pellet_Block is between 19 and 29 ; as the last 10 trials where a pellet can be retrieved before the reversal
+    block_range_df = df_obesity[(df_obesity['Block_Pellet_Count'] >= 19) & (df_obesity['Block_Pellet_Count'] <= 29)]
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(12, 2))
+    ax.plot(np.arange(len(true_left)), true_left, c="red", linewidth=2, alpha=1)
+    ax.plot(np.arange(len(mouse_left)), mouse_left, c="midnightblue", linewidth=3)
+    ax.set_ylabel("P(Left)")
+    ax.set_xlabel("Trial")
+    ax.set_title("Deterministic example (100-0)")
+    sns.despine()
+    plt.show()
+
+    # Collecting results after outliers are removed per variable
+    result = {
+        "filename": os.path.basename(file),
+        "duration_hours": duration_hours,
+        "total_pellets": f3b.count_pellets(df_obesity),
+        "total_pokes": f3b.count_pokes(df_obesity),
+        "pokes_per_pellet": f3b.pokes_per_pellet(df_obesity),
+        "accuracy": range_accuracy,  # Updated accuracy for Pellet_Block between 19 and 29
+        "win_stay": f3b.win_stay(df_obesity),
+        "lose_shift": f3b.lose_shift(df_obesity),
+        "poke_time_mean": poke_time_mean,  # Mean after removing poke time outliers
+        "retrieval_time_mean": retrieval_time_mean,  # Mean after removing retrieval time outliers
+        "retrieval_time_median": retrieval_time_median,  # Median after removing retrieval time outliers
+        "pokes/hour": f3b.count_pokes(df_obesity) / duration_hours,
+        "pellets/hour": f3b.count_pellets(df_obesity) / duration_hours
+    }
+
+    results_list.append(result)
+
+# Create the final DataFrame with merged parameters 
+results_df1 = pd.DataFrame(results_list)
+
+# Export the results to a CSV file named results_df1
+results_df1.to_csv('results_df1.csv', index=False)
+
+print("File list:", file_list)
