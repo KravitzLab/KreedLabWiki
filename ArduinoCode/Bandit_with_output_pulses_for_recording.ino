@@ -80,15 +80,15 @@ void loop() {
     delay(500);
     random_n = random(100);
     if (random(100) < fed3.prob_left) {                        //Select a random number between 0-100 and ask if it is between 0-80 (80% of the time).  If so:
-      //fed3.BNC(50,3);
+      fed3.BNC(50,3);
       fed3.ConditionedStimulus();                         //Deliver conditioned stimulus (tone and lights)
       delay(2000);
       fed3.Feed();                                        //Deliver pellet
-      //fed3.BNC(50,6);
+      fed3.BNC(50,6);
       pellet_counter ++;                                  //Increase pellet counter by one
     }
     else {                                                //If random number is between 81-100 (20% of the time)
-      //fed3.BNC(50,4);
+      fed3.BNC(50,4);
       fed3.Tone(300, 600);                               //Play the error tone
       fed3.Timeout(timeoutIncorrect, true, true);
     } 
@@ -99,20 +99,20 @@ void loop() {
   // Notice that in this example the behavior after a right poke is exactly the
   // same as the the behvaior after a left poke.
   if (fed3.Right) {
-    //fed3.BNC(50,2);
+    fed3.BNC(50,2);
     fed3.BlockPelletCount = pellet_counter;
     fed3.logRightPoke();                                  //Log Right poke
     delay(500);
     if (random(100) < fed3.prob_right) {                       //Select a random number between 0-100 and ask if it is between 80-100 (20% of the time).  If so:
-      //fed3.BNC(50,3);
+      fed3.BNC(50,3);
       fed3.ConditionedStimulus();                         //Deliver conditioned stimulus (tone and lights)
       delay(2000);
       fed3.Feed();                                        //Deliver pellet
-      //fed3.BNC(50,6);
+      fed3.BNC(50,6);
       pellet_counter ++;                                  //Increase pellet counter by one
     }
     else {                                                //If random number is between 0-80 (80% of the time)
-      //fed3.BNC(50,4);
+      fed3.BNC(50,4);
       fed3.Tone(300, 600);                               //Play the error tone
       fed3.Timeout(timeoutIncorrect, true, true);
     }
