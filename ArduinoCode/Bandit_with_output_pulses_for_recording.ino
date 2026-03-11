@@ -74,7 +74,7 @@ void loop() {
   // resets if the mouse pokes during timeout, and also white noise is present
   // through the whole timeout
   if (fed3.Left) {
-    //fed3.BNC(50,1);    
+    fed3.BNC(50,1);    
     fed3.BlockPelletCount = pellet_counter;
     fed3.logLeftPoke();                                   //Log left poke
     delay(500);
