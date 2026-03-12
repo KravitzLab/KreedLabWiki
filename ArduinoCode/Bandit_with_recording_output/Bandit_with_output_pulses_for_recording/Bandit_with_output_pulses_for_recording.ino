@@ -94,7 +94,7 @@ void loop() {
     fed3.BNC(50, 1);
     fed3.BlockPelletCount = pellet_counter;
     //fed3.logLeftPoke();                                 //Log left poke
-    fed3.RightCount++;
+    fed3.LeftCount++;
     delay(500);
     random_n = random(100);
     if (random(100) < fed3.prob_left) {  //Select a random number between 0-100 and ask if it is between 0-80 (80% of the time).  If so:
