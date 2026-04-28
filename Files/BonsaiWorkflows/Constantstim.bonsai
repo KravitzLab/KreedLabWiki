@@ -56,6 +56,15 @@
       <Expression xsi:type="MemberSelector">
         <Selector>Timestamp.TimeOfDay.TotalSeconds</Selector>
       </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Take">
+          <rx:Count>1</rx:Count>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:CombineLatest" />
+      </Expression>
+      <Expression xsi:type="Subtract" />
       <Expression xsi:type="Disable">
         <Builder xsi:type="Combinator">
           <Combinator xsi:type="cv:Crop">
@@ -113,6 +122,9 @@
       <Expression xsi:type="MemberSelector">
         <Selector>X</Selector>
       </Expression>
+      <Expression xsi:type="MemberSelector">
+        <Selector>Y</Selector>
+      </Expression>
       <Expression xsi:type="GreaterThanOrEqual">
         <Operand xsi:type="FloatProperty">
           <Value>0</Value>
@@ -124,17 +136,15 @@
           <ard:Pin>11</ard:Pin>
         </Combinator>
       </Expression>
-      <Expression xsi:type="MemberSelector">
-        <Selector>Y</Selector>
-      </Expression>
       <Expression xsi:type="Combinator">
         <Combinator xsi:type="rx:Zip" />
       </Expression>
       <Expression xsi:type="scr:ExpressionTransform">
-        <scr:Expression>new(Item1 as Seconds,
-    Item2 as Digital,
-    Item3 as X,
-    Item4 as Y)</scr:Expression>
+        <scr:Expression>new(Item1 as TotalSeconds,
+Item2 as ElapsedSeconds,
+Item3 as X,
+Item4 as Y,
+Item5 as DigitalOut)</scr:Expression>
       </Expression>
       <Expression xsi:type="io:CsvWriter">
         <io:FileName>Chow test\20260423_drd1_vpchr2_M276_post.csv</io:FileName>
@@ -149,24 +159,29 @@
       <Edge From="0" To="1" Label="Source1" />
       <Edge From="1" To="2" Label="Source1" />
       <Edge From="1" To="3" Label="Source1" />
-      <Edge From="1" To="5" Label="Source1" />
+      <Edge From="1" To="8" Label="Source1" />
       <Edge From="3" To="4" Label="Source1" />
-      <Edge From="4" To="16" Label="Source1" />
-      <Edge From="5" To="6" Label="Source1" />
+      <Edge From="4" To="5" Label="Source1" />
+      <Edge From="4" To="6" Label="Source1" />
+      <Edge From="4" To="19" Label="Source1" />
+      <Edge From="5" To="6" Label="Source2" />
       <Edge From="6" To="7" Label="Source1" />
-      <Edge From="7" To="8" Label="Source1" />
+      <Edge From="7" To="19" Label="Source2" />
       <Edge From="8" To="9" Label="Source1" />
       <Edge From="9" To="10" Label="Source1" />
       <Edge From="10" To="11" Label="Source1" />
       <Edge From="11" To="12" Label="Source1" />
-      <Edge From="11" To="15" Label="Source1" />
       <Edge From="12" To="13" Label="Source1" />
-      <Edge From="12" To="16" Label="Source3" />
       <Edge From="13" To="14" Label="Source1" />
-      <Edge From="14" To="16" Label="Source2" />
-      <Edge From="15" To="16" Label="Source4" />
-      <Edge From="16" To="17" Label="Source1" />
+      <Edge From="14" To="15" Label="Source1" />
+      <Edge From="14" To="16" Label="Source1" />
+      <Edge From="15" To="17" Label="Source1" />
+      <Edge From="15" To="19" Label="Source3" />
+      <Edge From="16" To="19" Label="Source4" />
       <Edge From="17" To="18" Label="Source1" />
+      <Edge From="18" To="19" Label="Source5" />
+      <Edge From="19" To="20" Label="Source1" />
+      <Edge From="20" To="21" Label="Source1" />
     </Edges>
   </Workflow>
 </WorkflowBuilder>
